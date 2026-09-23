@@ -1,6 +1,6 @@
 import sqlite3, json, random
 
-random.seed(42)  # deterministic, so re-runs are reproducible
+random.seed(42)
 
 DB_PATH = "/content/drive/MyDrive/voice-agent-mvp/db/students.sqlite"
 
@@ -16,9 +16,8 @@ STATES = [
 
 def make_record(i, state):
     enrolment = f"AMU{2023000+i}"
-    mobile = "9" + str(random.randint(100000000, 999999999))[:9]  # occasionally test 9-digit edge case
-    services = []
-    verification = []
+    mobile = "9" + str(random.randint(100000000, 999999999))[:9]
+    services, verification = [], []
 
     if state == "never_applied":
         services.append({"type": "wifi", "applied": False})
@@ -55,13 +54,11 @@ def main():
     records = []
     i = 1
     for state in STATES:
-        for _ in range(5):  # 5 variants per state = 35 total
+        for _ in range(5):
             records.append(make_record(i, state))
             i += 1
 
-    conn.executemany(
-        "INSERT OR REPLACE INTO students VALUES (?,?,?,?,?,?,?,?,?,?)", records
-    )
+    conn.executemany("INSERT OR REPLACE INTO students VALUES (?,?,?,?,?,?,?,?,?,?)", records)
     conn.commit()
     conn.close()
     print(f"Seeded {len(records)} records at {DB_PATH}")
