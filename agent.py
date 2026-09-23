@@ -3,7 +3,7 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask
 from pipecat.transports.livekit.transport import LiveKitTransport, LiveKitParams
-from pipecat.services.whisper import WhisperSTTService
+from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.services.openai import OpenAILLMService
 from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.audio.vad.silero import SileroVADAnalyzer
