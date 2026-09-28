@@ -33,7 +33,7 @@ async def main():
         base_url="http://localhost:11434/v1",
         api_key="ollama",
         settings=OpenAILLMService.Settings(
-            model="qwen3:8b",
+            model="qwen3:4b",
             system_instruction=(
                 "You are a voice test bot. Repeat back what the user said "
                 "in one short sentence. No lists, no markdown."
