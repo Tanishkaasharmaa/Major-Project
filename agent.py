@@ -8,7 +8,10 @@ from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.processors.aggregators.llm_context import LLMContext
-from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
+from pipecat.processors.aggregators.llm_response_universal import (
+    LLMContextAggregatorPair,
+    LLMUserAggregatorParams,
+)
 
 async def main():
     transport = LiveKitTransport(
@@ -18,11 +21,13 @@ async def main():
         params=LiveKitParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
-            vad_analyzer=SileroVADAnalyzer(),
         ),
     )
 
-    stt = WhisperSTTService(model="large-v3-turbo", device="cuda")
+    stt = WhisperSTTService(
+        device="cuda",
+        settings=WhisperSTTService.Settings(model="large-v3-turbo"),
+    )
 
     llm = OpenAILLMService(
         base_url="http://localhost:11434/v1",
@@ -41,7 +46,12 @@ async def main():
     )
 
     context = LLMContext()
-    user_agg, assistant_agg = LLMContextAggregatorPair(context)
+    user_agg, assistant_agg = LLMContextAggregatorPair(
+        context,
+        user_params=LLMUserAggregatorParams(
+            vad_analyzer=SileroVADAnalyzer(),
+        ),
+    )
 
     pipeline = Pipeline([
         transport.input(),
