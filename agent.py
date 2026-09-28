@@ -33,9 +33,9 @@ async def main():
         base_url="http://localhost:11434/v1",
         api_key="ollama",
         settings=OpenAILLMService.Settings(
-            model="qwen3:4b",
+            model="qwen2.5:7b-instruct",
             system_instruction=(
-                "You are a voice test bot. Repeat back what the user said "
+                "You are a voice test bot. Give answer to what user have said "
                 "in one short sentence. No lists, no markdown."
             ),
         ),
