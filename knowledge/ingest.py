@@ -5,6 +5,11 @@ CHROMA_PATH = "/content/drive/MyDrive/voice-agent-mvp/chroma_db"
 
 model = SentenceTransformer("BAAI/bge-m3")
 client = chromadb.PersistentClient(path=CHROMA_PATH)
+
+try:
+    client.delete_collection("wifi_faqs")
+except Exception:
+    pass
 collection = client.get_or_create_collection("wifi_faqs")
 
 with open("knowledge/faqs.json") as f:

@@ -1,5 +1,20 @@
 [
-  {"question": "How do I apply for Wi-Fi access?", "answer": "Submit the Wi-Fi application form through the Samarth portal under student services, then wait for provost approval."},
-  {"question": "What should I do if my Wi-Fi application was rejected?", "answer": "Check the rejection comment on your Samarth dashboard and contact the authority named there to resolve it."}
+  {"question": "How do I apply for Wi-Fi access?", "answer": "Log in to the Samarth portal with your enrolment number and submit the Wi-Fi application under student services, then wait for provost approval."},
+  {"question": "How long does Wi-Fi approval usually take?", "answer": "Approval typically takes three to five working days after your provost or chairman signs off on the application."},
+  {"question": "My Wi-Fi application was rejected, what do I do?", "answer": "Check the rejection comment on your Samarth dashboard, fix the issue it mentions, usually your hostel or department address, and reapply."},
+  {"question": "What does verification pending mean?", "answer": "It means your application is submitted but is still waiting for your provost or chairman to approve it before it moves forward."},
+  {"question": "What is a MAC address and why do I need to give one?", "answer": "A MAC address is a unique ID number for your laptop or phone's network card, and the Computer Centre uses it to register your specific device on the Wi-Fi."},
+  {"question": "How do I find my device's MAC address?", "answer": "On Windows, open Command Prompt and type ipconfig /all, and look for the Physical Address field under your Wi-Fi adapter."},
+  {"question": "My Wi-Fi was working but suddenly stopped, why?", "answer": "This is often because the device connecting doesn't match the MAC address on file, for example if you got a new phone or laptop without updating it."},
+  {"question": "How do I update my MAC address if I got a new device?", "answer": "You can request a MAC address update through the help desk, and once verified by phone, a confirmation link will be sent to your registered mobile number to complete it."},
+  {"question": "My application shows verified but Wi-Fi still doesn't work.", "answer": "This usually means your account is verified but still waiting in the provisioning queue to be actually created on the network, which can take a couple of extra days."},
+  {"question": "I was never told my Wi-Fi was ready, how do I know?", "answer": "Sometimes accounts are created but the notification doesn't go out, so it's worth trying to connect directly using your enrolment number as the username."},
+  {"question": "What are the Computer Centre's support hours?", "answer": "The Computer Centre help desk is available on working days from nine in the morning to five in the evening."},
+  {"question": "How do I reset my Wi-Fi password?", "answer": "You can request a password reset through the help desk, and a one-time reset link will be sent to your registered mobile number or email."},
+  {"question": "What if my mobile number isn't verified for OTP?", "answer": "If your mobile number isn't verified on file, you'll need to visit the Computer Centre in person with your student ID to update it before OTP-based resets can be used."},
+  {"question": "Can I use Wi-Fi in the hostel and the academic building with the same login?", "answer": "Yes, one Wi-Fi account works across all university Wi-Fi zones, including hostels and academic buildings."},
+  {"question": "What should I do if none of this solves my problem?", "answer": "If your issue isn't resolved by these steps, the help desk can raise a support ticket for you and give you a reference number to track it."},
+  {"question": "Who approves Wi-Fi applications, the provost or the chairman?", "answer": "Hostel residents need provost approval, while day scholars typically need their department chairman's approval instead."},
+  {"question": "Can I connect more than one device to my Wi-Fi account?", "answer": "Each Wi-Fi account is normally tied to one registered device by MAC address, so a second device would need its own MAC update request."},
+  {"question": "Is there a cost for Wi-Fi access?", "answer": "Wi-Fi access is included as part of standard university services and doesn't have a separate fee."}
 ]
-
