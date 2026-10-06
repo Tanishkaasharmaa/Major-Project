@@ -29,8 +29,12 @@ client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = client.get_or_create_collection("wifi_faqs")
 
 
+def embed_fn(query_text):
+    return embed_model.encode(query_text).tolist()
+
+
 def retrieve(query_text, top_k=3):
-    embedding = embed_model.encode(query_text).tolist()
+    embedding = embed_fn(query_text)
     res = collection.query(
         query_embeddings=[embedding], n_results=top_k,
         include=["documents", "distances"],
@@ -39,6 +43,41 @@ def retrieve(query_text, top_k=3):
     distances = res["distances"][0] if res["distances"] else []
     best_distance = distances[0] if distances else 999.0
     return docs, best_distance
+
+
+def evaluate(threshold, embed_fn, collection, eval_set):
+    correct, false_fallback, false_answer, wrong_match = 0, 0, 0, 0
+    for query, expected_id in eval_set:
+        emb = embed_fn(query)
+        res = collection.query(query_embeddings=[emb], n_results=1, include=["distances"])
+        best_id = int(res["ids"][0][0]) if (res["ids"] and res["ids"][0]) else None
+        best_dist = res["distances"][0][0] if (res["distances"] and res["distances"][0]) else 999.0
+        is_grounded = best_dist <= threshold
+
+        if expected_id is None:
+            if is_grounded:
+                false_answer += 1
+            else:
+                correct += 1
+        else:
+            if not is_grounded:
+                false_fallback += 1
+            elif best_id != expected_id:
+                wrong_match += 1
+            else:
+                correct += 1
+
+    total = len(eval_set)
+    print(f"threshold={threshold:.2f}: correct={correct}/{total}  "
+          f"false_fallback={false_fallback}  false_answer={false_answer}  wrong_match={wrong_match}")
+
+
+def sweep_thresholds(eval_set, start=0.3, stop=1.2, step=0.05):
+    print("\n=== THRESHOLD EVALUATION SWEEP ===")
+    t = start
+    while t <= stop + 1e-5:
+        evaluate(round(t, 2), embed_fn, collection, eval_set)
+        t += step
 
 
 def ask(query_text):
@@ -118,3 +157,9 @@ if __name__ == "__main__":
     nonsense_ok = all(r["matches_fallback"] for r in log_lines[-3:])
     print(f"All close-match questions got real answers: {close_ok}")
     print(f"All nonsense questions got the fallback: {nonsense_ok}")
+
+from eval_set import EVAL_SET
+
+if __name__ == "__main__":
+    # Run the evaluation sweep across candidate thresholds
+    sweep_thresholds(EVAL_SET, start=0.3, stop=1.2, step=0.05)

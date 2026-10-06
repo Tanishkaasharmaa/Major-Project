@@ -10,13 +10,16 @@ try:
     client.delete_collection("wifi_faqs")
 except Exception:
     pass
-collection = client.get_or_create_collection("wifi_faqs")
-
+# collection = client.get_or_create_collection("wifi_faqs")
+collection = client.get_or_create_collection(
+    "wifi_faqs",
+    metadata={"hnsw:space": "cosine"}
+)
 with open("knowledge/faqs.json") as f:
     faqs = json.load(f)
 
 for idx, faq in enumerate(faqs):
-    embedding = model.encode(faq["question"] + " " + faq["answer"]).tolist()
+    embedding = model.encode(faq["question"]).tolist()
     collection.add(
         ids=[str(idx)],
         embeddings=[embedding],
