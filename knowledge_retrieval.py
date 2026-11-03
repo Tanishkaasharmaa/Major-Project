@@ -38,7 +38,7 @@ class KnowledgeRetrievalProcessor(FrameProcessor):
         await self.push_frame(frame, direction)
 
     async def _inject_context(self, query_text: str):
-        embedding = self.embed_model.encode(query_text).tolist()
+        embedding = self.embed_model.encode("query: " + query_text, normalize_embeddings=True).tolist()
         results = self.collection.query(
             query_embeddings=[embedding],
             n_results=self.top_k,

@@ -18,7 +18,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from knowledge_retrieval import KnowledgeRetrievalProcessor, SYSTEM_TEMPLATE
 
 CHROMA_PATH = "/content/drive/MyDrive/voice-agent-mvp/chroma_db"
-DISTANCE_THRESHOLD = 1.0
+DISTANCE_THRESHOLD = 0.17
 async def main():
     transport = LiveKitTransport(
         url=os.environ["LIVEKIT_URL"],
@@ -50,7 +50,7 @@ async def main():
         user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer()),
     )
 
-    embed_model = SentenceTransformer("BAAI/bge-m3")
+    embed_model = SentenceTransformer("intfloat/e5-large-v2")
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = chroma_client.get_or_create_collection("wifi_faqs")
 
