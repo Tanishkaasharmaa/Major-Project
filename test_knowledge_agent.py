@@ -241,13 +241,6 @@ with open("knowledge/faqs.json", "r", encoding="utf-8") as f:
 MODEL_CONFIGS = [
 
     {
-        "name": "Qwen/Qwen3-Embedding-8B",
-        "query_prefix": "",
-        "passage_prefix": "",
-        "query_prompt_name": "query"
-    },
-
-    {
         "name": "BAAI/bge-m3",
         "query_prefix": "",
         "passage_prefix": "",
