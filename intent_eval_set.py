@@ -41,3 +41,15 @@ EXTRA = [
 ]
 
 INTENT_EVAL_SET = INTENT_EVAL_SET + EXTRA
+
+
+# Mixed personal/infrastructure wording. Personal account symptoms remain a
+# walk candidate even when the caller speculates about a router or signal.
+MIXED = [
+    ("my laptop cannot connect to campus wifi; maybe the router is the problem", "walk"),
+    ("wifi stopped working on my phone and the signal looks weak", "walk"),
+    ("my account was approved but the access point near me seems down", "walk"),
+    ("the router is broken for everyone in our hostel corridor", "other"),
+    ("the access point in the library has no signal for anyone", "other"),
+]
+INTENT_EVAL_SET.extend(MIXED)

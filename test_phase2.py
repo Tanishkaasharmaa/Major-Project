@@ -353,3 +353,72 @@ def test_caller_speech_cannot_choose_the_record(db, tmp_path):
     dlg.handle("my friend's wifi is not working, he is one zero zero zero zero one")
     dlg.handle("yes")
     assert dlg.last_diagnosis.state is WifiState.NEVER_APPLIED   # reads exactly the confirmed number
+
+
+# ------------------------------------------------------ review-fix regressions
+@pytest.mark.parametrize("text", [
+    "no, I bought a new phone",
+    "yes, the same phone",
+])
+def test_contradictory_device_answer_is_unclear(text):
+    assert parse_new_device(normalize(text)) is None
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("I haven't changed it", False),
+    ("I have a new phone", True),
+    ("no, same phone", False),
+    ("no new phone", False),
+    ("yes, I got a new laptop", True),
+])
+def test_device_answer_evidence(text, expected):
+    assert parse_new_device(normalize(text)) is expected
+
+
+def test_new_device_without_mac_on_file_is_not_called_mismatch(db, tmp_path):
+    path, _ = db
+    dlg = make_dialogue(path, tmp_path)
+    run_walk(dlg, "200010", "yes")
+    assert dlg.last_diagnosis.state.value == "mac_not_on_file"
+    assert "cannot confirm" in dlg.last_diagnosis.response.lower()
+
+
+def test_account_fine_response_does_not_claim_device_is_registered(db, tmp_path):
+    path, _ = db
+    dlg = make_dialogue(path, tmp_path)
+    run_walk(dlg, "100031", "no")
+    response = dlg.last_diagnosis.response.lower()
+    assert "registered to your device" not in response
+    assert "does not confirm" in response
+
+
+def test_dialogue_times_out_after_inactivity(db, tmp_path):
+    path, _ = db
+    now = [100.0]
+    dlg = WifiDiagnosisDialogue(
+        intent_fn=lambda _text: True, db_path=path,
+        log_dir=str(tmp_path / "logs"), turn_timeout_seconds=10,
+        clock=lambda: now[0],
+    )
+    first = dlg.handle(COMPLAINT)
+    assert first.handled and dlg.state is DialogueState.ASK_ENROLMENT
+    now[0] += 8
+    assert dlg.handle("thank you").text is None  # silence/noise must not extend the active turn
+    now[0] += 3
+    expired = dlg.handle("one zero zero zero zero one")
+    assert expired.handled and "timed out" in expired.text.lower()
+    assert dlg.state is DialogueState.IDLE
+
+
+def test_infrastructure_guard_keeps_mixed_personal_complaints_in_walk():
+    from intent_router import is_infrastructure_only
+
+    assert is_infrastructure_only("the router in the library is broken")
+    assert not is_infrastructure_only(
+        "my laptop cannot connect to campus wifi; maybe the router is the problem"
+    )
+    assert not is_infrastructure_only("my wifi stopped working and the signal is weak")
+
+
+def test_mixed_yes_and_no_device_answer_is_unclear():
+    assert parse_new_device(normalize("yes, I have not changed my phone")) is None

@@ -15,19 +15,24 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
-from knowledge_retrieval import KnowledgeRetrievalProcessor, SYSTEM_TEMPLATE
+from knowledge_retrieval import (KnowledgeRetrievalProcessor, SYSTEM_TEMPLATE,
+                                  validate_faq_collection)
 
 # --- Phase 2 ---
 from dialogue import WifiDiagnosisDialogue
 from diagnosis_processor import WifiDiagnosisProcessor, TurnClaims
 from intent_router import EmbeddingIntentRouter, load_negative_examples
 
-CHROMA_PATH = "/content/drive/MyDrive/voice-agent-mvp/chroma_db"
+CHROMA_PATH = os.environ.get(
+    "VOCAL_CHROMA_PATH",
+    "/content/drive/MyDrive/voice-agent-mvp/chroma_db",
+)
 DISTANCE_THRESHOLD = 0.17   # E5 + cosine, from the 84-query eval
 
-# Replace with the best values printed by test_intent_routing.py
-INTENT_MIN_SIM = 0.80
-INTENT_MARGIN = 0.02
+# Set these from the calibration script's printed export commands.
+# Defaults are provisional until calibration is rerun on the current eval set.
+INTENT_MIN_SIM = float(os.environ.get("VOCAL_INTENT_MIN_SIM", "0.80"))
+INTENT_MARGIN = float(os.environ.get("VOCAL_INTENT_MARGIN", "0.02"))
 
 # Mock student DB (seed it first: python db/seed_students.py). Run from the repo root.
 os.environ.setdefault("STUDENT_DB_PATH", "db/students.sqlite")
@@ -66,9 +71,15 @@ async def main():
 
     embed_model = SentenceTransformer("intfloat/e5-large-v2")
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-    collection = chroma_client.get_or_create_collection("wifi_faqs")
+    collection = chroma_client.get_or_create_collection(
+        "wifi_faqs", metadata={"hnsw:space": "cosine"}
+    )
+    collection_info = validate_faq_collection(collection, embed_model)
+    print(f"[FAQ] validated collection: {collection_info}")
 
     # Phase 2: personal Wi-Fi complaints go to the deterministic account walk
+    print(f"[IntentRouter] runtime thresholds: min_sim={INTENT_MIN_SIM:.3f}, "
+          f"margin={INTENT_MARGIN:.3f}")
     router = EmbeddingIntentRouter(
         embed_model, load_negative_examples(),
         min_sim=INTENT_MIN_SIM, margin=INTENT_MARGIN,

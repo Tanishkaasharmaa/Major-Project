@@ -109,15 +109,31 @@ def parse_yes_no(norm: str) -> Optional[bool]:
 
 
 def parse_new_device(norm: str) -> Optional[bool]:
-    """Answer to 'have you got a new phone or laptop since you registered?'"""
+    """Interpret device-change evidence; contradictory answers are unclear."""
+    tokens = set(norm.split())
+    has_yes = bool(tokens & YES_WORDS)
+    has_no = bool(tokens & NO_WORDS)
+    if has_yes and has_no:
+        return None
     explicit = parse_yes_no(norm)
+
+    # Do not treat negated changes ("haven't changed", "no new phone") as
+    # positive evidence that the caller switched devices.
+    negated_change = bool(re.search(
+        r"\b(?:not|no|never|havent|hasnt|didnt|dont|wasnt)\s+"
+        r"(?:(?:a|any)\s+)?(?:new|different|another)\b|"
+        r"\b(?:not|no|never|havent|hasnt|didnt|dont|wasnt)\s+"
+        r"(?:got|bought|changed|replaced|upgraded|have|own)\b", norm
+    ))
+    new = bool(tokens & NEW_DEVICE_WORDS) and not negated_change
+    same = bool(tokens & SAME_DEVICE_WORDS)
+
+    lexical = None if new == same else new
+    if explicit is not None and lexical is not None and explicit != lexical:
+        return None
     if explicit is not None:
         return explicit
-    tokens = set(norm.split())
-    new, same = bool(tokens & NEW_DEVICE_WORDS), bool(tokens & SAME_DEVICE_WORDS)
-    if new == same:
-        return None
-    return new
+    return lexical
 
 
 def _is_cancel(norm: str) -> bool:
@@ -138,10 +154,14 @@ def log_stub_action(action: str, enrolment: Optional[str], detail: dict, log_dir
 # ---------------------------------------------------------------- dialogue
 class WifiDiagnosisDialogue:
     def __init__(self, intent_fn: Callable[[str], bool], db_path: Optional[str] = None,
-                 log_dir: str = "logs"):
+                 log_dir: str = "logs", turn_timeout_seconds: float = 45.0,
+                 clock: Callable[[], float] = time.monotonic):
         self.intent_fn = intent_fn
         self.db_path = db_path
         self.log_dir = log_dir
+        self.turn_timeout_seconds = turn_timeout_seconds
+        self._clock = clock
+        self._last_activity = None
         self.last_diagnosis: Optional[Diagnosis] = None
         self.device_question_asked = False
         self._reset()
@@ -154,6 +174,7 @@ class WifiDiagnosisDialogue:
         self.failures = 0
         self._wifi = None
         self._verification = None
+        self._last_activity = None
 
     def _escalate(self, reason: str) -> DialogueResult:
         log_stub_action("ticket_stub", self.identity.enrolment if self.identity else None,
@@ -177,11 +198,20 @@ class WifiDiagnosisDialogue:
         if self.state is DialogueState.IDLE:
             return self._handle_idle(text)
 
+        now = self._clock()
+        if (self._last_activity is not None
+                and now - self._last_activity > self.turn_timeout_seconds):
+            self._reset()
+            return DialogueResult(
+                True,
+                "That account check timed out. Please tell me again if you need help with your Wi-Fi account.",
+            )
         if _is_cancel(norm):
             self._reset()
             return DialogueResult(True, "Okay, no problem. Let me know if there is anything else I can help with.")
         if not norm or norm in NOISE_PHRASES:
             return SILENT
+        self._last_activity = now
 
         if self.state is DialogueState.ASK_ENROLMENT:
             return self._handle_enrolment(text)
@@ -202,12 +232,14 @@ class WifiDiagnosisDialogue:
         if len(digits) == ENROLMENT_LENGTH:      # caller already said the number
             return self._read_back(digits)
         self.state = DialogueState.ASK_ENROLMENT
+        self._last_activity = self._clock()
         return DialogueResult(True, "I can check your Wi-Fi account for you. "
                                     "Please say your six digit enrolment number, one digit at a time.")
 
     def _read_back(self, digits: str) -> DialogueResult:
         self.candidate = digits
         self.state = DialogueState.CONFIRM_ENROLMENT
+        self._last_activity = self._clock()
         return DialogueResult(True, f"I heard {speak_digits(digits)}. Is that correct?")
 
     def _handle_enrolment(self, text: str) -> DialogueResult:
@@ -253,6 +285,7 @@ class WifiDiagnosisDialogue:
         state = classify_account(self._wifi, self._verification)
         if state is None:
             self.state = DialogueState.ASK_DEVICE
+            self._last_activity = self._clock()
             self.device_question_asked = True
             self.failures = 0
             return DialogueResult(True, DEVICE_QUESTION)

@@ -1,7 +1,10 @@
 """
-The 7-state Wi-Fi account diagnosis (Project_Context section 10.3).
+The seven primary Wi-Fi account diagnosis states plus one evidence-gap outcome.
 
-Pure functions, no I/O, no LLM. Evaluation order matters:
+Pure functions, no I/O, no LLM. Evaluation order matters. `MAC_NOT_ON_FILE`
+is used only when the account is provisioned, the caller reports a new device,
+and the database has no registered MAC to compare; it prevents an unsupported
+claim that a MAC mismatch has been proven.
 
   1. never applied           -> 0 questions
   2. rejected                -> 0 questions   (checked BEFORE pending: a rejected
@@ -13,9 +16,9 @@ Pure functions, no I/O, no LLM. Evaluation order matters:
   6. working, never notified -> 1 question  (answer = no, notified = false)
   7. account fine            -> 1 question  (answer = no, notified = true)
 
-Only the three provisioned states need the device question, because a MAC
-mismatch is a difference between the registered device and the caller's
-current device, and the DB only knows the first of those.
+Provisioned accounts need the device question. A MAC mismatch is only
+reported when a registered MAC exists; otherwise the result is
+`mac_not_on_file` and the case is sent for technical review.
 
 Spoken responses are scripted (2-3 short sentences, no digits, no formatting).
 """
@@ -31,11 +34,12 @@ class WifiState(str, Enum):
     REJECTED = "rejected"
     PROVISIONING_BACKLOG = "provisioning_backlog"
     MAC_MISMATCH = "mac_mismatch"
+    MAC_NOT_ON_FILE = "mac_not_on_file"
     NOT_NOTIFIED = "not_notified"
     ACCOUNT_FINE = "account_fine"
 
 
-PROVISIONED_STATES = {WifiState.MAC_MISMATCH, WifiState.NOT_NOTIFIED, WifiState.ACCOUNT_FINE}
+PROVISIONED_STATES = {WifiState.MAC_MISMATCH, WifiState.MAC_NOT_ON_FILE, WifiState.NOT_NOTIFIED, WifiState.ACCOUNT_FINE}
 
 
 @dataclass
@@ -80,8 +84,10 @@ def classify_account(wifi: Dict[str, Any], verification: Dict[str, Any]) -> Opti
 
 
 def finish_provisioned(wifi: Dict[str, Any], new_device: bool) -> WifiState:
-    if new_device:
+    if new_device and wifi.get("mac_registered"):
         return WifiState.MAC_MISMATCH
+    if new_device and not wifi.get("mac_registered"):
+        return WifiState.MAC_NOT_ON_FILE
     if not wifi.get("notified"):
         return WifiState.NOT_NOTIFIED
     return WifiState.ACCOUNT_FINE
@@ -150,6 +156,14 @@ def build_diagnosis(state: WifiState, wifi: Dict[str, Any], verification: Dict[s
             action="mac_update_stub",
         )
 
+    if state is WifiState.MAC_NOT_ON_FILE:
+        return Diagnosis(
+            state,
+            "Your account is active, but there is no registered device address in the record. "
+            "I cannot confirm that this is a device mismatch, so I will ask the team to check your account.",
+            action="technical_followup_stub",
+        )
+
     if state is WifiState.NOT_NOTIFIED:
         return Diagnosis(
             state,
@@ -161,8 +175,7 @@ def build_diagnosis(state: WifiState, wifi: Dict[str, Any], verification: Dict[s
     # ACCOUNT_FINE
     return Diagnosis(
         state,
-        "Your Wi-Fi account is active and registered to your device, "
-        "so the account itself looks fine. "
-        "The problem may be with the connection, so I'll note this down for the team to look into.",
+        "The account record shows that Wi-Fi was created and a notification was sent. "
+        "That does not confirm that your device can connect, so I will ask the team to investigate the connection.",
         action="technical_followup_stub",
     )

@@ -220,7 +220,7 @@ def build_edge_cases():
     add(10, "created but no MAC on file, caller has new device", "N.R.S.C. Hall",
         verification_items(provost=True, chairman=True),
         [wifi_entry(True, "Created", "cc_admin", mac="")] + other_services(),
-        "mac_mismatch", new_device=True)
+        "mac_not_on_file", new_device=True)
     return cases
 
 

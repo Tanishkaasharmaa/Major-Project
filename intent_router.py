@@ -24,7 +24,7 @@ from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 
-MIN_SIM = 0.88      # placeholder: calibrate
+MIN_SIM = 0.80      # provisional runtime default; calibrate with test_intent_routing.py
 MARGIN = 0.02       # placeholder: calibrate
 
 WALK_EXAMPLES = [
@@ -68,7 +68,14 @@ WALK_FAQ_IDS = {6, 8, 9}
 INFRA_PATTERN = re.compile(
     r"\b(router|access point|cable|signal|lan port|lan point|wifi box)\b", re.IGNORECASE)
 
+PERSONAL_CONTEXT_PATTERN = re.compile(
+    r"\b(my (?:phone|laptop|device|wifi|account)|on my (?:phone|laptop|device)|"
+    r"i cannot|i can[\'’]t|i am unable|i[\'’]m unable|i applied|i got|i have)\b", re.IGNORECASE)
 
+
+def is_infrastructure_only(text: str) -> bool:
+    """Guard clear shared-infrastructure reports, not personal complaints mentioning a router."""
+    return bool(INFRA_PATTERN.search(text)) and not bool(PERSONAL_CONTEXT_PATTERN.search(text))
 def load_negative_examples(faq_path: str = "knowledge/faqs.json",
                            exclude_ids: Iterable[int] = WALK_FAQ_IDS) -> List[str]:
     with open(faq_path) as f:
@@ -100,7 +107,7 @@ class EmbeddingIntentRouter:
         return float((self._walk @ vec).max()), float((self._other @ vec).max())
 
     def is_account_complaint(self, text: str) -> bool:
-        if not text or INFRA_PATTERN.search(text):
+        if not text or is_infrastructure_only(text):
             return False
         walk_best, other_best = self.scores(text)
         return walk_best >= self.min_sim and (walk_best - other_best) >= self.margin

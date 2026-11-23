@@ -16,6 +16,7 @@ import warnings
 import pytest
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+pytest.importorskip("pipecat", reason="Pipecat is required for processor integration tests")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "db"))
 import seed_students  # noqa: E402
 
@@ -32,18 +33,41 @@ from knowledge_retrieval import SYSTEM_TEMPLATE, KnowledgeRetrievalProcessor  # 
 
 
 class FakeEmbedModel:
+    def __init__(self):
+        self.calls = []
+
     def encode(self, text, normalize_embeddings=True):
+        self.calls.append(text)
         class V(list):
             def tolist(self):
                 return list(self)
         return V([0.0, 1.0])
 
+    def get_sentence_embedding_dimension(self):
+        return 2
+
 
 class FakeCollection:
-    """Always returns one FAQ passage at distance 0.05 (i.e. a confident match)."""
+    """Returns one relevant and two below-threshold passages."""
+    metadata = {"hnsw:space": "cosine", "embedding_model": "intfloat/e5-large-v2",
+                "embedding_dimension": 2}
+
+    def __init__(self):
+        self.queries = []
+
+    def count(self):
+        return 3
+
     def query(self, **kwargs):
-        return {"documents": [["Approval usually takes a few working days."]],
-                "distances": [[0.05]]}
+        self.queries.append(kwargs)
+        return {
+            "documents": [[
+                "Approval usually takes a few working days.",
+                "Unrelated information about device MAC addresses.",
+                "Unrelated information about guest access.",
+            ]],
+            "distances": [[0.05, 0.31, 0.44]],
+        }
 
 
 class Capture(FrameProcessor):
@@ -71,9 +95,13 @@ async def run_scenario(tmp_path, turns, intent_fn):
     claims = TurnClaims()
     dialogue = WifiDiagnosisDialogue(intent_fn=intent_fn, db_path=db_path, log_dir=log_dir)
     diag = WifiDiagnosisProcessor(context, dialogue, claims, verbose=False)
+    fake_collection = FakeCollection()
+    fake_embed_model = FakeEmbedModel()
     retrieval = KnowledgeRetrievalProcessor(
-        context=context, collection=FakeCollection(), embed_model=FakeEmbedModel(),
+        context=context, collection=fake_collection, embed_model=fake_embed_model,
         distance_threshold=0.17, log_path=str(tmp_path / "unanswered.log"), claims=claims)
+    context._test_collection = fake_collection
+    context._test_embed_model = fake_embed_model
     capture = Capture()
 
     task = PipelineTask(Pipeline([diag, retrieval, capture]))
@@ -100,6 +128,59 @@ def spoken(frames):
 
 def reached_llm(frames):
     return any(isinstance(f, LLMContextFrame) for f in frames)
+
+
+
+def test_retrieval_filters_each_result_by_distance(tmp_path):
+    turns = ["how long does approval take"]
+    per_turn, context, _ = asyncio.run(run_scenario(tmp_path, turns, lambda t: False))
+    prompt = context.messages[0]["content"]
+    assert "Approval usually takes" in prompt
+    assert "Unrelated information" not in prompt
+
+
+def test_repeated_identical_faq_turns_are_both_retrieved(tmp_path):
+    turns = ["how long does approval take", "how long does approval take"]
+    per_turn, context, _ = asyncio.run(run_scenario(tmp_path, turns, lambda t: False))
+    assert all(reached_llm(frames) for frames in per_turn)
+    # Each distinct user-message object causes a separate embedding/retrieval call.
+    assert len(context._test_collection.queries) == 2
+    assert len(context._test_embed_model.calls) == 2
+
+
+def test_collection_validation_rejects_empty_or_wrong_metric():
+    from knowledge_retrieval import validate_faq_collection
+
+    class Model:
+        def get_sentence_embedding_dimension(self):
+            return 2
+
+    class Collection:
+        metadata = {"hnsw:space": "cosine", "embedding_model": "intfloat/e5-large-v2",
+                    "embedding_dimension": 2}
+        def count(self):
+            return 1
+
+    assert validate_faq_collection(Collection(), Model())["count"] == 1
+
+    class Empty(Collection):
+        def count(self):
+            return 0
+
+    with pytest.raises(RuntimeError, match="empty"):
+        validate_faq_collection(Empty(), Model())
+
+    class WrongMetric(Collection):
+        metadata = {"hnsw:space": "l2"}
+
+    with pytest.raises(RuntimeError, match="cosine"):
+        validate_faq_collection(WrongMetric(), Model())
+
+    class MissingModelMetadata(Collection):
+        metadata = {"hnsw:space": "cosine"}
+
+    with pytest.raises(RuntimeError, match="metadata identifies"):
+        validate_faq_collection(MissingModelMetadata(), Model())
 
 
 def test_walk_is_spoken_by_script_and_never_reaches_llm(tmp_path):
