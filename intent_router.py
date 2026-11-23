@@ -24,7 +24,7 @@ from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 
-MIN_SIM = 0.80      # placeholder: calibrate
+MIN_SIM = 0.88      # placeholder: calibrate
 MARGIN = 0.02       # placeholder: calibrate
 
 WALK_EXAMPLES = [
