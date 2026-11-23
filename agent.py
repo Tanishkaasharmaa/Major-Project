@@ -17,8 +17,22 @@ from pipecat.processors.aggregators.llm_response_universal import (
 )
 from knowledge_retrieval import KnowledgeRetrievalProcessor, SYSTEM_TEMPLATE
 
+# --- Phase 2 ---
+from dialogue import WifiDiagnosisDialogue
+from diagnosis_processor import WifiDiagnosisProcessor, TurnClaims
+from intent_router import EmbeddingIntentRouter, load_negative_examples
+
 CHROMA_PATH = "/content/drive/MyDrive/voice-agent-mvp/chroma_db"
-DISTANCE_THRESHOLD = 0.17
+DISTANCE_THRESHOLD = 0.17   # E5 + cosine, from the 84-query eval
+
+# Replace with the best values printed by test_intent_routing.py
+INTENT_MIN_SIM = 0.80
+INTENT_MARGIN = 0.02
+
+# Mock student DB (seed it first: python db/seed_students.py). Run from the repo root.
+os.environ.setdefault("STUDENT_DB_PATH", "db/students.sqlite")
+
+
 async def main():
     transport = LiveKitTransport(
         url=os.environ["LIVEKIT_URL"],
@@ -54,17 +68,29 @@ async def main():
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = chroma_client.get_or_create_collection("wifi_faqs")
 
+    # Phase 2: personal Wi-Fi complaints go to the deterministic account walk
+    router = EmbeddingIntentRouter(
+        embed_model, load_negative_examples(),
+        min_sim=INTENT_MIN_SIM, margin=INTENT_MARGIN,
+    )
+    dialogue = WifiDiagnosisDialogue(intent_fn=router.is_account_complaint)
+    claims = TurnClaims()
+    diagnosis = WifiDiagnosisProcessor(context=context, dialogue=dialogue, claims=claims)
+
+    # Phase 1: everything else is answered from the FAQ knowledge base
     retrieval = KnowledgeRetrievalProcessor(
         context=context,
         collection=collection,
         embed_model=embed_model,
         distance_threshold=DISTANCE_THRESHOLD,
+        claims=claims,
     )
 
     pipeline = Pipeline([
         transport.input(),
         stt,
         user_agg,
+        diagnosis,      # NEW: claims Wi-Fi account complaints, speaks scripted replies
         retrieval,
         llm,
         tts,
